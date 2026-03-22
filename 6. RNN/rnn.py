@@ -2,15 +2,14 @@ import torch
 import torch.nn as nn
 
 
+# RNN Cell 구현
 class RNNCell(nn.Module):
-    """RNN 셀을 직접 구현 (nn.RNN을 쓰지 않고 순환 구조를 수동으로 구성)"""
-
     def __init__(self, input_size, hidden_size):
         super().__init__()
         self.hidden_size = hidden_size
-        self.i2h = nn.Linear(input_size, hidden_size, bias=False)
-        self.h2h = nn.Linear(hidden_size, hidden_size)
-        self.activation = nn.Tanh()
+        self.i2h = nn.Linear(input_size, hidden_size)  # 입력층 -> hidden 층
+        self.h2h = nn.Linear(hidden_size, hidden_size)  # hidden 층 -> hidden 층
+        self.activation = nn.Tanh()  # 활성화 함수
 
     def forward(self, x_t, h_prev):
         # h_t = tanh(W_ih * x_t + W_hh * h_prev + b)
@@ -22,110 +21,65 @@ class CustomRNN(nn.Module):
     """
     커스텀 RNN 모델
     - 입력층: Linear (input_size -> hidden_size)
-    - 은닉층: RNNCell (시간 축을 따라 순환)
+    - 은닉층: RNNCell (num_layers 만큼 쌓아서 순환)
     - 출력층: Linear (hidden_size -> output_size)
     """
 
     def __init__(self, input_size, hidden_size, output_size, num_layers=1):
         super().__init__()
-        self.hidden_size = hidden_size
+        self.hidden_size = hidden_size #다른 메서드에서 쓰기 위해 저장
         self.num_layers = num_layers
 
+        # 입력층
         self.input_layer = nn.Linear(input_size, hidden_size)
+
+        # 은닉층
         self.rnn_cells = nn.ModuleList(
             [RNNCell(hidden_size, hidden_size) for _ in range(num_layers)]
-        )
+        ) # 여러개의 nn.Module 를 담아두고 해석 가능한 리스트
+
+        # 출력층
         self.output_layer = nn.Linear(hidden_size, output_size)
 
-    def _init_hidden(self, batch_size, device):
-        return [
-            torch.zeros(batch_size, self.hidden_size, device=device)
-            for _ in range(self.num_layers)
-        ]
-
-    def forward(self, x, hidden=None):
+    def forward(self, x, h_prev=None):
         """
-        x: (batch_size, seq_len, input_size)
-        반환: output (batch_size, output_size), hidden states
+        Args:
+            x: 입력 텐서 (batch, seq_len, input_size)
+            h_prev: 초기 은닉 상태 (num_layers, batch, hidden_size) 또는 None
+
+        Returns:
+            outputs: 전체 시퀀스 출력 (batch, seq_len, output_size)
+            h_t: 마지막 타임스텝의 은닉 상태 (num_layers, batch, hidden_size)
         """
-        batch_size, seq_len, _ = x.size()
+        batch_size, seq_len, _ = x.size() #입력 텐서에서 정보 빼기
 
-        if hidden is None:
-            hidden = self._init_hidden(batch_size, x.device)
+        # 초기 은닉 상태가 없으면 0으로 초기화
+        if h_prev is None:
+            h_prev = torch.zeros(
+                self.num_layers, batch_size, self.hidden_size, device=x.device
+            ) #0 초기화, x.device 는 gpu 인지 cpu 인지 확인하고 그에 맞게 메모리 설정 
+            # 예를 들어 (2,4,16) -> layer 2개, batch 4개, hidden size 16
 
-        # 입력층: 각 타임스텝의 입력을 hidden_size 차원으로 변환
-        x = self.input_layer(x)  # (batch, seq_len, hidden_size)
+        # 각 레이어의 은닉 상태를 리스트로 분리
+        h_states = [h_prev[layer] for layer in range(self.num_layers)] #h_prev 를 레이어별로 분리 즉 h_states[0] = h_prev[0], h_states[1] = h_prev[1] (4,16)
 
-        # 은닉층: 시간 축을 따라 순환 연산 수행
-        for t in range(seq_len):
-            x_t = x[:, t, :]  # (batch, hidden_size)
-            for layer_idx, rnn_cell in enumerate(self.rnn_cells):
-                x_t = rnn_cell(x_t, hidden[layer_idx])
-                hidden[layer_idx] = x_t
+        outputs = []
+        for t in range(seq_len): #seq_len, 즉 타임스텝 만큼 반복
+            # 입력층 통과
+            layer_input = self.input_layer(x[:, t, :])  # (batch, hidden_size) 즉 t 정수 인덱싱이 가운데 사라지게 함
 
-        # 출력층: 마지막 타임스텝의 은닉 상태로 최종 출력 생성
-        output = self.output_layer(hidden[-1])  # (batch, output_size)
+            # 각 레이어의 RNNCell을 순서대로 통과
+            for layer in range(self.num_layers):
+                h_states[layer] = self.rnn_cells[layer](layer_input, h_states[layer])
+                layer_input = h_states[layer]  # 현재 레이어 출력 = 다음 레이어 입력
 
-        return output, hidden
+            # 마지막 레이어의 출력을 output_layer에 전달
+            outputs.append(self.output_layer(h_states[-1]))
 
+        # (seq_len, batch, output_size) -> (batch, seq_len, output_size)
+        outputs = torch.stack(outputs, dim=1) #seq_len 기준으로 쌓아야 하니까
 
-# 데모: 사인파 예측 (다음 값 예측)
-if __name__ == "__main__":
-    import math
+        # 은닉 상태를 다시 (num_layers, batch, hidden_size)로 합침
+        h_t = torch.stack(h_states, dim=0) #레이어 기준으로 쌓는다. nn.RNN 이 은닉 상태를 (num_layers, batch, hidden_size) 로 반환하기 때문에 지정
 
-    torch.manual_seed(42)
-
-    # 하이퍼파라미터
-    INPUT_SIZE = 1
-    HIDDEN_SIZE = 32
-    OUTPUT_SIZE = 1
-    NUM_LAYERS = 2
-    SEQ_LEN = 20
-    EPOCHS = 300
-    LR = 0.005
-
-    # 사인파 데이터 생성
-    def generate_sine_data(n_samples=200, seq_len=20):
-        X, Y = [], []
-        for i in range(n_samples):
-            start = i * 0.1
-            seq = [math.sin(start + j * 0.1) for j in range(seq_len + 1)]
-            X.append(seq[:-1])
-            Y.append(seq[-1])
-        X = torch.tensor(X, dtype=torch.float32).unsqueeze(-1)  # (n, seq_len, 1)
-        Y = torch.tensor(Y, dtype=torch.float32).unsqueeze(-1)  # (n, 1)
-        return X, Y
-
-    X, Y = generate_sine_data()
-    print(f"데이터 크기 - X: {X.shape}, Y: {Y.shape}")
-
-    # 모델 생성
-    model = CustomRNN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
-    print(f"\n모델 구조:\n{model}\n")
-
-    total_params = sum(p.numel() for p in model.parameters())
-    print(f"총 파라미터 수: {total_params:,}\n")
-
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-
-    # 학습
-    for epoch in range(1, EPOCHS + 1):
-        model.train()
-        output, _ = model(X)
-        loss = criterion(output, Y)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        if epoch % 50 == 0 or epoch == 1:
-            print(f"[Epoch {epoch:>3d}/{EPOCHS}]  Loss: {loss.item():.6f}")
-
-    # 예측 결과 확인
-    model.eval()
-    with torch.no_grad():
-        pred, _ = model(X[:5])
-        print("\n-- 예측 vs 정답 (앞 5개) --")
-        for i in range(5):
-            print(f"  예측: {pred[i].item():>8.4f}  |  정답: {Y[i].item():>8.4f}")
+        return outputs, h_t
