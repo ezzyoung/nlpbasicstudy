@@ -11,6 +11,13 @@ from rnn import CustomRNN
 자식에서 오버라이드한 메서드는 rnn_run.py 즉 자식의 것을 따름
 그러나 자식에서 정의 안한 메서드는 rnn.py 인 부모, 즉 상속한 것을 따름
 
+데이터 
+
+NSMC(Naver Sentiment Movie Corpus)
+네이버 영화 리뷰 5만 개 테스트셋으로, 긍정 =1, 부정=0
+
+#최종 결과 최고 acc 68%
+
 '''
 
 # 데이터로드
