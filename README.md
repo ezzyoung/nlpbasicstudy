@@ -29,4 +29,4 @@
 - Deep CNN (VGG-16) MNIST 분류
 
 ### NLP Tasks
-- Fine-tuning
+- Fine-tuning 연습
