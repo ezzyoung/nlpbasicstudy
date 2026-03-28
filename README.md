@@ -3,30 +3,26 @@
 
 ## 목차
 
-### 2. Pytorch 정리
+### 1. Pytorch 정리
 - 텐서 조작 (Tensor Manipulation)
 
-### 3. Machine Learning
-- 선형 회귀와 Autograd
-- 다중 변수 선형 회귀
-- nn.Module과 Class
-- Mini Batch와 DataLoader
-- 벡터와 행렬 연산
+### 2. RNN 연습
+- RNN 구현 및 돌려봄
 
-### 4. Logistic Regression
-- 로지스틱 회귀
-- nn.Module과 Class
+### 3. CNN 연습
+- VGG 16 구현 및 돌려봄
 
-### 5. Softmax Regression
-- 소프트맥스 회귀
-- MNIST 분류
+### 4. NLP Tasks
+- Attention 이해 (미완성)
+- BiLSTM Task 구현 이해
+- BERT Full FineTuning Process 구현 및 이해
+- RAG 뼈대 (미완성)
 
-### 6. RNN
-- RNN 모델 구현 및 실행
+### 5. Transformer 구현 (아직 미진행)
+- Transformer 구현 (목표)
+- main.py 로 돌려보기 (목표)
 
-### 7. CNN
-- CNN MNIST 분류
-- Deep CNN (VGG-16) MNIST 분류
+### 6. BERT 으로 학습 및 Task (아직 미진행)
+- 감정 분류 task 
 
-### NLP Tasks
-- Fine-tuning 연습
+### 7. GPT-2 LoRA Fine-Tuning (아직 미진행)
