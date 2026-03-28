@@ -26,3 +26,5 @@
 - 감정 분류 task 
 
 ### 7. GPT-2 LoRA Fine-Tuning (아직 미진행)
+
+### 8. RAG 구현 이후 FAISS 로 벡터 DB 제대로 이해하면서 구현 (아직 미진행)
